@@ -22,6 +22,31 @@ class Deck:
     def view_deck(self):
         return self.cards
 
+class Player:
+    def __init__(self, name="Player"):
+        self.name = name
+        self.dollaridoos = 10000
+        self.bloodpool = 400
+
+
+
+class Hand:
+    def __init__(self, bet=0):
+        self.cards = []
+        self.bet = bet
+        self.is_done = False
+        self.is_doubled = False
+
+    def add_card(self, card):
+        self.cards.append(card)
+
+    def is_splittable(self):
+        if len(self.cards) == 2: #this might need tweeking, if i add cheats that alter this
+            return self.cards[0][1] == self.cards[1][1]
+        return False
+
+
+
 
 
 #noe eye-candy jeg fikk gemini til å sette sammen for meg så jeg har noe å se på mens jeg bygger og tester:
