@@ -57,7 +57,7 @@ def print_equal_decks(decks):
         print(f"{første_Stokk} - {andre_stokk}")
 
 
-deck = Deck()
+deck = Deck(6)
 fresh_deck = format_cards(deck.view_deck())
 deck.shuffle()
 shuffled_deck = format_cards(deck.view_deck().copy())
