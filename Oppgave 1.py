@@ -19,7 +19,7 @@ class Film:
         #      De er også separate attributter etter init oppretter dem, hvis man senere lager en metode som foranderer
         #      self.name, vil ikke den forandringen gjenspeiles i self.movie["name"]
 
-        #Alternativ konstruksjon av self.movies:
+        #Alternativ konstruksjon av self.movie:
         # self.movie = {"name":name, "year":year, "score":score}
         # Da kan man også skippe å definere self.name = name, ... etc
 
