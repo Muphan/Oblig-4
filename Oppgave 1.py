@@ -35,6 +35,7 @@ class Film:
 
     # B)
     # Denne trenger ingen argumenter, den henter verdiene rett fra objektets attributter
+    # Oppdaget __str__ etter jeg lagde denne, men lar metoden stå.
     def output_object_string(self):
         return f"{self.movie['name']} was released in {self.movie['year']} and currently has a score of {self.movie['score']}"
 
