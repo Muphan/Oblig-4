@@ -29,7 +29,9 @@ class Deck:
     def draw(self):
         #print(isinstance(self.deck, list))
         if self.deck:
-            return self.deck.pop()
+            drawn_card = self.deck.pop()
+            print(drawn_card)
+            return drawn_card
         return None
 
     def __len__(self):
@@ -67,8 +69,8 @@ class Deck:
 
 
 
-    def view_deck(self):
-        return self.deck
+#    def view_deck(self):
+#        return self.deck
 
 class Player:
     def __init__(self, name="Player"):
@@ -115,11 +117,13 @@ class BlackJack:
         self.dealer = Dealer()
 
     def run_game(self):
+        return
 
 
 
 #class Dealer:
 
+# takes list of dicts and returns list of tuples
 class RenderCard:
     RED = "\033[91m"
     RESET = "\033[0m"
@@ -130,7 +134,32 @@ class RenderCard:
         "Spades": "♠",
         "Clubs": "♣"
     }
-    def __init__(self):
+    def __init__(self, cards):
+        rendered_list = []
+        for card in cards:
+            suit = card["suit"]
+            rank = card["rank"]
+            symbol = self.SUIT_SYMBOLS.get(suit, suit)
+            card_template = (
+                f"+-----------+",
+                f"| {rank:<2}        |",
+                f"|           |",
+                f"|     {symbol}     |",
+                f"|           |",
+                f"|        {rank:>2} |",
+                f"+-----------+"
+            )
+            rendered_list.append(card_template)
+
+        self.rendered_cards = tuple(rendered_list)
+
+    def display(self):
+        if not self.rendered_cards:
+            return
+        for line_group in zip(*self.rendered_cards):
+            print(" ".join(line_group))
+
+
 
 
 
@@ -169,21 +198,29 @@ def print_equal_decks(decks):
 
 
 deck = Deck(2)
-fresh_deck = format_cards(deck.view_deck())
+#fresh_deck = format_cards(deck.deck)
 deck.shuffle()
-shuffled_deck = format_cards(deck.view_deck().copy())
+#shuffled_deck = format_cards(deck.deck.copy())
 
-print_equal_decks([fresh_deck, shuffled_deck])
+#print_equal_decks([fresh_deck, shuffled_deck])
 
 print("You are dealt:")
 
 cards_to_deal = 2
+
+dealt_cards =  []
 for _ in range(cards_to_deal):
-    print(f"{deck.draw()}")
+    dealt_cards.append(deck.draw())
 
-print(len(deck))
+RenderCard(dealt_cards).display()
 
+
+
+#print(len(deck))
+
+"""
 for card in deck.list_rendered_deck():
     for line in card:
         print(line)
     print()
+"""
