@@ -3,8 +3,8 @@
 class Film:
     I_AM = "A movie" #Klasseattributt, lik for alle instanser av klassen (har dette med kun for demo formål)
 
-    # generer et film objekt, hvis parametere/argumenter mangler får den standardverdi som beskriver hva verdien skal være, her lik nøkkelen til verdien.
-    def __init__(self, name="name", year="year", score="score"):
+    # generer et film objekt, hvis parametere/argumenter mangler får den verdi som forteller at verdien mangler.
+    def __init__(self, name="[missing <name>]", year="[missing <year>]", score="[missing <score>]"):
 
         #gjør parametrene til objektattributter med self., slik at de er tilgjengelig for alle metoder i objektet/instansen
         self.name = name
