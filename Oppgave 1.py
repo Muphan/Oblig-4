@@ -28,6 +28,8 @@ class Film:
         self.movie[attribute] = value
 
     # Metode som returnerer verdien for forespurt attributt
+    # (*2) Glemte at det ikke trengs en egen metode for å kalle på objekt-attributt/instansvariabel,
+    #      Så denne metoden er unødvendig.
     def output_attribute(self, attribute):
         return self.movie[attribute]
 
@@ -52,8 +54,16 @@ Joker = Film("Joker", 2019, 8.4)
 movies = [Inception, The_Martian, Joker]
 
 # Iterer over objektene og henter ut verdiene med 3 separate kall.
+"""
+(*2)
+# Helt oversett eller glemt at man kunne kalle på objekets attributter direkte, endret kallene, men lar metoden stå
 for movie in movies:
     print(f"{movie.output_attribute('name')} was released in {movie.output_attribute('year')} and currently has a score of {movie.output_attribute('score')}")
+print()
+"""
+
+for movie in movies:
+    print(f"{movie.movie['name']} was released in {movie.movie['year']} and currently has a score of {movie.movie['score']}")
 print()
 
 #================================================================================
