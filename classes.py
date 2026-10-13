@@ -32,12 +32,40 @@ class Deck:
             return self.deck.pop()
         return None
 
-#    def draw_random(self):
-#        if self.cards:
-
-
     def __len__(self):
         return len(self.deck)
+
+    def list_rendered_deck(self):
+        RED = "\033[91m"
+        RESET = "\033[0m"
+
+        SUIT_SYMBOLS = {
+            "Hearts": f"{RED}♥{RESET}",
+            "Diamonds": f"{RED}♦{RESET}",
+            "Spades": "♠",
+            "Clubs": "♣"
+        }
+
+        rendered_deck = []
+        for card in self.deck:
+            #rendered_card = []
+
+            rank = card["rank"]
+            suit = card["suit"]
+            symbol = SUIT_SYMBOLS.get(suit, suit)
+            card_template = [
+                f"+-----------+",
+                f"| {rank:<2}        |",
+                f"|           |",
+                f"|     {symbol}     |",
+                f"|           |",
+                f"|        {rank:>2} |",
+                f"+-----------+"
+            ]
+            rendered_deck.append((line for line in card_template))
+        return rendered_deck
+
+
 
     def view_deck(self):
         return self.deck
@@ -47,6 +75,15 @@ class Player:
         self.name = name
         self.dollaridoos = 10000 #D$
         self.bloodpool = 400 #cL
+
+    def bet(self, amount):
+        if self.dollaridoos >= amount:
+            self.dollaridoos -= amount
+            return f"{self.name} bet {amount}."
+        else:
+            return f"You don't have the funds for such a grand gamble!"
+
+
 
 
 
@@ -65,7 +102,35 @@ class Hand:
             return self.cards[0][1] == self.cards[1][1]
         return False
 
+class BlackJack:
+    def __init__(self):
+        # Ruleset:
+        self.hole_card = True
+        self.shoe_size = 2
 
+        self.deck = Deck(self.shoe_size)
+
+        self.player = Player()
+
+        self.dealer = Dealer()
+
+    def run_game(self):
+
+
+
+#class Dealer:
+
+class RenderCard:
+    RED = "\033[91m"
+    RESET = "\033[0m"
+
+    SUIT_SYMBOLS = {
+        "Hearts": f"{RED}♥{RESET}",
+        "Diamonds": f"{RED}♦{RESET}",
+        "Spades": "♠",
+        "Clubs": "♣"
+    }
+    def __init__(self):
 
 
 
@@ -116,5 +181,9 @@ cards_to_deal = 2
 for _ in range(cards_to_deal):
     print(f"{deck.draw()}")
 
-print(deck.__len__())
+print(len(deck))
 
+for card in deck.list_rendered_deck():
+    for line in card:
+        print(line)
+    print()
