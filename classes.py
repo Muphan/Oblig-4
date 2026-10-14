@@ -27,10 +27,8 @@ class Deck:
         random.shuffle(self.deck)
 
     def draw(self):
-        #print(isinstance(self.deck, list))
         if self.deck:
             drawn_card = self.deck.pop()
-            print(drawn_card)
             return drawn_card
         return None
 
@@ -124,6 +122,7 @@ class BlackJack:
 #class Dealer:
 
 # takes list of dicts and returns list of tuples
+#convert to function
 class RenderCard:
     RED = "\033[91m"
     RESET = "\033[0m"
@@ -161,48 +160,11 @@ class RenderCard:
 
 
 
-
-
-#noe eye-candy jeg fikk gemini til å sette sammen for meg så jeg har noe å se på mens jeg bygger og tester:
-# ANSI-fargekoder
-RED = "\033[91m"
-RESET = "\033[0m"
-
-# Oppslagstabell for symboler og farger
-SUIT_SYMBOLS = {
-    "Hearts": f"{RED}♥{RESET}",
-    "Diamonds": f"{RED}♦{RESET}",
-    "Spades": "♠",
-    "Clubs": "♣"
-}
-
-
-def format_card(card):
-    """
-    Tar imot et kort-tuple som ('Hearts', 'Ace') eller ('Spades', '10')
-    og returnerer en formattert streng med farge og symbol.
-    """
-    suit = card["suit"]
-    value = card["rank"]
-    symbol = SUIT_SYMBOLS.get(suit, suit)
-    return f"[{value} {symbol}]"
-
-def format_cards(cards):
-    return [format_card(card) for card in cards]
-
-def print_equal_decks(decks):
-
-    for første_Stokk, andre_stokk in zip(decks[0], decks[1]):
-
-        print(f"{første_Stokk} - {andre_stokk}")
-
-
 deck = Deck(2)
-#fresh_deck = format_cards(deck.deck)
-deck.shuffle()
-#shuffled_deck = format_cards(deck.deck.copy())
 
-#print_equal_decks([fresh_deck, shuffled_deck])
+deck.shuffle()
+
+
 
 print("You are dealt:")
 
