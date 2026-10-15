@@ -10,11 +10,37 @@ class BlackJack:
 
         self.player = Player()
 
-        self.dealer = Dealer()
+        self.dealer = Dealer(hole_card=self.hole_card)
 
     def run_game(self):
-
+        self.start_round()
         return
+
+    def start_round(self):
+        self.deck.shuffle()
+        starting_cards = 2
+        check_bet = False
+        while not check_bet:
+            while True:
+                try:
+                    _prompt_bet = int(input("Place your wager, mortal!"))
+                    break
+                except ValueError:
+                    print("We'll stick to non-exotic denominations of currency for your sake, mortal!\nState your wager as a whole number!\n")
+
+            check_bet = self.player.bet(_prompt_bet)
+        print(f"ok.\nplayer funds:{self.player.funds}") #just for debugging
+        for _ in range(starting_cards): # denne håndterer ikke hvis vi ikke har hole card.
+            self.player.hand.add_card(self.deck.draw())
+            self.dealer.add_card(self.deck.draw())
+
+        #print(self.player.hand.cards)
+
+        dealer_cards = RenderCard(self.dealer.hand)
+        player_cards = RenderCard(self.player.hand.cards)
+        dealer_cards.display()
+        player_cards.display()
+
 
 class Deck:
     SUITS = ["Hearts", "Clubs", "Spades", "Diamonds"]
@@ -31,7 +57,8 @@ class Deck:
                 "rank": rank[0],
                 "value": rank[1],
                 "is_marked": False,
-                "is_cursed": False
+                "is_cursed": False,
+                "face_down": False
             }
             for _ in range(num_decks)
             for suit in self.SUITS
@@ -88,27 +115,52 @@ class Deck:
 class Player:
     def __init__(self, name="Player"):
         self.name = name
-        self.dollaridoos = 10000 #D$
+        self.funds = 10000 #D$
         self.bloodpool = 400 #cL
 
-    def bet(self, amount):
-        if self.dollaridoos >= amount:
-            self.dollaridoos -= amount
-            return f"{self.name} bet {amount}."
-        else:
-            return f"You don't have the funds for such a grand gamble!"
+        self.hand = Hand()
 
+    def bet(self, amount):
+        if self.funds >= amount:
+            self.funds -= amount
+            self.hand.bet += amount
+            print(f"{self.name} bet {amount}.")
+            return True
+        else:
+            print(f"You don't have the funds for such a grand gamble!")
+            return False
+
+
+class Dealer:
+    def __init__(self, hole_card=True):
+        self.bank = 100000
+        self.hole_card = hole_card
+
+        self.hand = []
+
+    def add_card(self, card):
+        #print(card)
+        if len(self.hand) == 1:
+            #print(card["face_down"])
+            card["face_down"] = True
+            self.hand.append(card)
+        else:
+            self.hand.append(card)
 
 
 
 
 class Hand:
-    def __init__(self, bet=0):
+    def __init__(self):
         self.cards = []
-        self.bet = bet
+        self.bet = 0
         self.is_done = False
         self.is_doubled = False
-        #self.turn = -2
+        #self.turn = -2 hadde en idé som krevde at jeg tracka tur, men gikk bort fra det
+
+    # glemte at jeg kunne gå på attributten direkte
+    #def change_bet(self, bet):
+    #    self.bet += bet
 
     def add_card(self, card): # Expects a single card-dict
         self.cards.append(card)
@@ -126,7 +178,7 @@ class Hand:
 
 
 
-#class Dealer:
+
 
 # takes list of dicts and returns list of tuples
 #convert to function
@@ -142,6 +194,15 @@ class RenderCard:
     }
     def __init__(self, cards):
         rendered_list = []
+        face_down = (
+            f"+===========+",
+            f"|| + + + + ||",
+            f"||+ + + + +||",
+            f"|| + + + + ||",
+            f"||+ + + + +||",
+            f"|| + + + + ||",
+            f"+===========+"
+        )
         for card in cards:
             suit = card["suit"]
             rank = card["rank"]
@@ -155,7 +216,7 @@ class RenderCard:
                 f"|        {rank:>2} |",
                 f"+-----------+"
             )
-            rendered_list.append(card_template)
+            rendered_list.append(card_template if not card["face_down"] else face_down)
 
         self.rendered_cards = tuple(rendered_list)
 
@@ -193,3 +254,7 @@ for card in deck.list_rendered_deck():
         print(line)
     print()
 """
+
+game = BlackJack()
+game.deck.list_rendered_deck
+game.run_game()
