@@ -1,5 +1,20 @@
 import random
 
+class BlackJack:
+    def __init__(self):
+        # Ruleset:
+        self.hole_card = True
+        self.shoe_size = 2
+
+        self.deck = Deck(self.shoe_size)
+
+        self.player = Player()
+
+        self.dealer = Dealer()
+
+    def run_game(self):
+
+        return
 
 class Deck:
     SUITS = ["Hearts", "Clubs", "Spades", "Diamonds"]
@@ -93,29 +108,21 @@ class Hand:
         self.bet = bet
         self.is_done = False
         self.is_doubled = False
+        #self.turn = -2
 
-    def add_card(self, card):
+    def add_card(self, card): # Expects a single card-dict
         self.cards.append(card)
+        #self.turn += 1
 
     def is_splittable(self):
         if len(self.cards) == 2: #this might need tweeking, if i add cheats that alter this
             return self.cards[0][1] == self.cards[1][1]
         return False
 
-class BlackJack:
-    def __init__(self):
-        # Ruleset:
-        self.hole_card = True
-        self.shoe_size = 2
 
-        self.deck = Deck(self.shoe_size)
 
-        self.player = Player()
 
-        self.dealer = Dealer()
 
-    def run_game(self):
-        return
 
 
 
