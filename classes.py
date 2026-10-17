@@ -275,7 +275,7 @@ class BlackJack:
             if not self.players:
                 RED = "\033[91m"
                 RESET = "\033[0m"
-                print(f"No players left!\n\n{RED}{'THE':^40}\n\n{'HOUSE':^40}\n\n{'ALWAYS':^40}\n\n{'WINS':^40}{RESET}")
+                print(f"{'No players left!':^40}\n\n{RED}{'THE':^40}\n\n{'HOUSE':^40}\n\n{'ALWAYS':^40}\n\n{'WINS':^40}{RESET}")
                 break
 
             round_over = self.start_round()
@@ -303,14 +303,6 @@ class BlackJack:
             for hand in player.hands:
                 self.deck.collect_cards(hand.cards)
             player.reset_for_new_round()
-
-
-
-
-
-
-
-
 
 
 class Deck:
@@ -426,7 +418,7 @@ class Hand:
         return (self.get_score() == 21)  # Returns True or False
 
 
-
+"""
 deck = Deck(2)
 deck.shuffle()
 
@@ -437,6 +429,8 @@ for _ in range(cards_to_deal):
     dealt_cards.append(deck.draw())
 ascii.display_cards(dealt_cards)
 #print(len(deck))
+"""
+
 
 """
 for card in deck.list_rendered_deck():
