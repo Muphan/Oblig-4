@@ -106,7 +106,7 @@ class BlackJack:
         self.dealer.hand.add_card(self.deck.draw(), face_down=True)
 
         #Draw table
-        ascii.display_table(self.dealer, self.players)
+        #ascii.display_table(self.dealer, self.players)
 
         # Checks for blackjacks
         check_game_state = self.check_initial_blackjacks()
@@ -174,6 +174,73 @@ class BlackJack:
             else:
                 print(f"INVALID! Chose a valid option, {player.name}!\n")
 
+    def play_dealer_turn(self):
+        """Dealer reveals hand and draws until minimum 17"""
+        self.dealer.show_hole_card()
+        ascii.display_table(self.dealer, self.players)
+
+        # Checks that not all hands are busted.
+        active_hands = [
+            hand for player in self.players
+            for hand in player.hands
+            if hand.get_score() <= 21
+        ]
+
+        if not active_hands:
+            print("All players have busted, the game is over!")
+            return
+
+        print("--- DEALERS TURN ---")
+
+        while self.dealer.hand.get_score() < 17:
+            print(f"Dealer draws a card...")
+            card = self.deck.draw()
+            self.dealer.hand.add_card(card)
+            ascii.display_table(self.dealer, self.players)
+
+        dealer_score = self.dealer.hand.get_score()
+
+        if dealer_score > 21:
+            print(f"DEALER BUST!")
+        else:
+            print(f"Dealer stands with {dealer_score} points!")
+
+    def settle_bets(self):
+        """Settles bets for all active players"""
+        dealer_score = self.dealer.hand.get_score()
+        dealer_busted = dealer_score > 21
+
+        print("\n" + "=" * 40)
+        print("          ENDELIG OPPGJØR          ")
+        print("=" * 40)
+
+        for player in self.players:
+            for i, hand in enumerate(player.hands):
+                hand_label = f" (Hand {i + 1})" if len(player.hands) > 1 else ""
+
+                # skip hands that already busted
+                if hand.get_score() > 21:
+                    continue
+
+                player_score = hand.get_score()
+
+                if dealer_busted or player_score > dealer_score:
+                    payout = hand.bet * 2
+                    player.funds += payout
+                    self.dealer.bank -= hand.bet
+                    print(f"Congratulations! {player.name}{hand_label} beats dealer!\n({player_score} vs {dealer_score})\n{player.name} won a payout of {payout} D$!")
+
+                elif player_score == dealer_score:
+                    player.funds += hand.bet
+                    print(f"PUSH! {player.name}'s hand is equal to dealers!")
+
+                else:
+                    self.dealer.bank += hand.bet
+                    print(f"LOSS! Dealer beats {player.name}'s hand!")
+
+            print("=" * 40 + "\n")
+
+
     def _execute_split(self, player, hand_index):
         current_hand = player.hands[hand_index]
 
@@ -196,11 +263,36 @@ class BlackJack:
         print(f"{player.name} split their hand! I congratulate you on your daring play!")
 
     def run_game(self):
-        opening = self.start_round()
-        if not opening: # If start round returns False, the game continues
-            self.play_player_turns()
+        print("\n=== THE TABLE IS SET ===")
 
-        return
+        while True:
+            for player in self.players[:]:
+                if player.funds <= 0:
+                    print(f"\n {player.name} has run out of funds, and is cast out")
+                    self.players.remove(player)
+
+            # Check if there are players remaining
+            if not self.players:
+                RED = "\033[91m"
+                RESET = "\033[0m"
+                print(f"No players left!\n\n{RED}{'THE':^40}\n\n{'HOUSE':^40}\n\n{'ALWAYS':^40}\n\n{'WINS':^40}{RESET}")
+                break
+
+            round_over = self.start_round()
+
+            if not round_over:
+                self.play_player_turns()
+                self.play_dealer_turn()
+                self.settle_bets()
+
+            self.cleanup_round()
+
+            print("\n" + "-" * 40)
+            choice = input("Press [ENTER] to play another round, or [Q]uit to leave the table: ").strip().lower()
+
+            if choice == "q":
+                print("\nYou gather your winnings and step away from the table. Until next time, mortal...")
+                break
 
     def cleanup_round(self):
         if hasattr(self.dealer.hand, "cards"):
@@ -294,10 +386,10 @@ class Dealer:
         self.hand = Hand()
 
     def show_hole_card(self):
-        self.hand[1]["face_down"] = False
+        self.hand.cards[1]["face_down"] = False
 
     def reset_for_new_round(self):
-        self.hands = [Hand()]
+        self.hands = Hand()
 
 
 
