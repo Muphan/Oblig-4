@@ -12,4 +12,4 @@ Oppgave 2: We're tasked in making a blackjack game. I'm planning on giving it a 
 GUI.py:
 Started work on learning PyQt5 to give the game an UI
 
-![Screenshot of the main menu (so far...)](assets/bloddjack_main_menu.png)
+![Screenshot of the main menu (so far...)](assets/bloodjack_main_menu.png)
