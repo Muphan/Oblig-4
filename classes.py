@@ -439,9 +439,9 @@ for card in deck.list_rendered_deck():
     print()
 """
 
-game = BlackJack()
+#game = BlackJack()
 #game.deck.list_rendered_deck
-game.run_game()
+#game.run_game()
 
 
 
