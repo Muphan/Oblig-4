@@ -1,4 +1,4 @@
-Assignment 4 for the subject Programing 1 at Østfold Community College.
+Assignment 4 for the subject Programing 1 at Østfold University of Applied Sciences.
 
 Oppgave 1: Just a basic class assignment, commented extra so it's easier to learn for other students.
 
