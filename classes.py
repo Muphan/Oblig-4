@@ -1,9 +1,12 @@
 import random
-import ascii_renderer as ascii
+import ascii_renderer as ascii_render
 
 
 
 class BlackJack:
+    """Main instance, is owner of Player, Dealer and Deck
+       Contains and handles the game logic.
+       Game is started by calling BlackJack.run_game()"""
     def __init__(self):
         # Ruleset:
         self.hole_card = True
@@ -18,6 +21,7 @@ class BlackJack:
         self.dealer = Dealer(hole_card=self.hole_card)
 
     def add_players_to_table(self):
+        """Method to add players to table"""
         print("Who shall join us for this round of wagers?")
         print("(Press ENTER on a blank line when all players are registered)\n")
 
@@ -53,12 +57,14 @@ class BlackJack:
                 print("State your wager as a whole number!\n")
 
     def check_initial_blackjacks(self):
+        """Checks if dealer or players have blackjack. Returns True if all players and/or dealer has blackjack
+           False if at least one player and dealer doesn't have blackjack"""
         # Checks if dealer has blackjack
         dealer_is_jacked = self.dealer.hand.is_blackjack()
 
         if dealer_is_jacked:
             self.dealer.show_hole_card()
-            ascii.display_table(self.dealer, self.players)
+            ascii_render.display_table(self.dealer, self.players)
             print(f"But fortune does not shine upon you today, as I have blackjack!")
 
             # Sets Hand.is_done to True (Round over)
@@ -91,6 +97,7 @@ class BlackJack:
 
 
     def start_round(self):
+        """Starts the round of the game, handles the initial dealing of cards and initiates the blackjack check"""
         self.deck.shuffle()
 
         # Prompt for bets
@@ -115,7 +122,7 @@ class BlackJack:
         return (check_game_state)
 
     def play_player_turns(self):
-        """Loops through players that aren't done and lets them make choices"""
+        """Loops through each player and their hands, that aren't done, and lets them make choices"""
         for player in self.players:
             i = 0
             while i < len(player.hands):
@@ -123,15 +130,15 @@ class BlackJack:
 
                 if hand.is_done:
                     i += 1
-                    continue # Skipps if player got blackjack.
+                    continue # Skips if player got blackjack.
 
                 self._handle_hand_turn(player, hand, hand_index=i)
                 i += 1
 
     def _handle_hand_turn(self, player, hand, hand_index=None):
-        """Handles a single hand"""
+        """Handles a single hand, takes player instance, player.hand instance and index of the hand"""
         while not hand.is_done:
-            ascii.display_table(self.dealer, self.players)
+            ascii_render.display_table(self.dealer, self.players)
 
             hand_label = f" (Hand {hand_index + 1})" if len(player.hands) > 1 else ""
             print(f"--- {player.name.upper()}'S TURN{hand_label}")
@@ -141,6 +148,12 @@ class BlackJack:
                 hand.is_done = True
                 break
 
+            """
+            Checks if player hand qualifies for splitting returns True if:
+            - Only have 2 cards
+            - That those cards have the same value/rank
+            - That the player have remaining funds = initial bet.
+            """
             can_split = (
                 len(hand.cards) == 2
                 and hand.cards[0]["rank"] == hand.cards[1]["rank"]
@@ -148,6 +161,7 @@ class BlackJack:
             )
 
             options = ["[H]it", "[S]tand"]
+            # Add split option if conditions are met
             if can_split:
                 options.append("s[P]lit")
 
@@ -159,7 +173,7 @@ class BlackJack:
 
                 # Bust check:
                 if hand.get_score() > 21:
-                    ascii.display_table(self.dealer, self.players)
+                    ascii_render.display_table(self.dealer, self.players)
                     print(f"BUST! Your hand exceeds 21, {player.name}! You lost your wager!")
                     self.dealer.bank += hand.bet
                     hand.is_done = True
@@ -177,9 +191,9 @@ class BlackJack:
     def play_dealer_turn(self):
         """Dealer reveals hand and draws until minimum 17"""
         self.dealer.show_hole_card()
-        ascii.display_table(self.dealer, self.players)
+        ascii_render.display_table(self.dealer, self.players)
 
-        # Checks that not all hands are busted.
+        # Checks that not all players have busted.
         active_hands = [
             hand for player in self.players
             for hand in player.hands
@@ -196,7 +210,7 @@ class BlackJack:
             print(f"Dealer draws a card...")
             card = self.deck.draw()
             self.dealer.hand.add_card(card)
-            ascii.display_table(self.dealer, self.players)
+            ascii_render.display_table(self.dealer, self.players)
 
         dealer_score = self.dealer.hand.get_score()
 
@@ -211,7 +225,7 @@ class BlackJack:
         dealer_busted = dealer_score > 21
 
         print("\n" + "=" * 40)
-        print("          ENDELIG OPPGJØR          ")
+        print("            FINAL TALLY            ")
         print("=" * 40)
 
         for player in self.players:
@@ -242,6 +256,7 @@ class BlackJack:
 
 
     def _execute_split(self, player, hand_index):
+        """Helper function for to split the hand"""
         current_hand = player.hands[hand_index]
 
         # Takes bet out of funds
@@ -263,6 +278,13 @@ class BlackJack:
         print(f"{player.name} split their hand! I congratulate you on your daring play!")
 
     def run_game(self):
+        """The main game loop.
+           -Starts by checking if any players are broke, only relevant for 2nd,...,n-th iterations.
+           -Ends game if all players are broke
+           -Starts a new round start_round() returns True if all players or dealer have blackjack.
+            False if there's players left to continue the round.
+            -Then it runs player turns -> dealer turn -> settles bets -> cleans up
+           -Players given choice to play another round or quit"""
         print("\n=== THE TABLE IS SET ===")
 
         while True:
@@ -295,6 +317,9 @@ class BlackJack:
                 break
 
     def cleanup_round(self):
+        """Collects cards from hands and puts them back into the deck.
+           This method will need a small rewrite if I add an option in settings for having a discard pile.
+           The current code treats the deck and played cards like a casino with advanced shuffling machines"""
         if hasattr(self.dealer.hand, "cards"):
             self.deck.collect_cards(self.dealer.hand.cards)
             self.dealer.hand.cards.clear()
@@ -306,6 +331,7 @@ class BlackJack:
 
 
 class Deck:
+    """Class attributes defining the suits and ranks of playing cards"""
     SUITS = ["Hearts", "Clubs", "Spades", "Diamonds"]
     RANKS = [("2", 2), ("3", 3), ("4", 4), ("5", 5),
              ("6", 6), ("7", 7), ("8", 8), ("9", 9),
@@ -313,7 +339,18 @@ class Deck:
              ("A", 11)]
 
     def __init__(self, num_decks=1):
-        #Generates the "shoe" (collection of decks)
+        """Generates the "shoe" (collection of decks); generator runs: <for suit in SUITS for rank in RANKS>,
+            this creates one complete deck for each loop in range(num_decks), and populates the list <self.deck>.
+            Each card is a dictionary containing important information:
+            suit: str(card suit)
+            rank: str(card rank)
+            value: int(card value)
+            is_marked: bool
+            is_cursed: bool
+            face_down: bool
+            value_modifier: int
+            """
+
         self.deck = [
             {
                 "suit": suit,
@@ -329,10 +366,12 @@ class Deck:
             for rank in self.RANKS
         ]
 
-    def shuffle(self): #shuffles the deck in place
+    def shuffle(self):
+        """Shuffles the deck"""
         random.shuffle(self.deck)
 
     def draw(self):
+        """Draws one card from the deck"""
         if self.deck:
             drawn_card = self.deck.pop()
             return drawn_card
@@ -350,14 +389,18 @@ class Deck:
 
 
 class Player:
+    """Creates a player object, takes name as a parameter when constructing the object"""
     def __init__(self, name="Player"):
         self.name = name
         self.funds = 10000 #D$
         self.bloodpool = 400 #cL
 
+        # Changed the player hands to be handled as list, s player can have two hands if they choose to split their hand
         self.hands = [Hand()]
 
     def bet(self, amount):
+        """Check that player have enough funds, subracts the bet from available funds if they don't
+            prints a message and returns False if they do not have enough funds """
         if self.funds >= amount:
             self.funds -= amount
             self.hands[0].bet += amount
@@ -368,24 +411,29 @@ class Player:
             return (False)
 
     def reset_for_new_round(self):
+        """Clears hand"""
         self.hands = [Hand()]
 
 
 class Dealer:
+    """Creates a dealer instance"""
     def __init__(self, hole_card=True):
         self.bank = 100000
         self.hole_card = hole_card
         self.hand = Hand()
 
     def show_hole_card(self):
+        """As dealers second card is drawn face down, this method turns that card to face up"""
         self.hand.cards[1]["face_down"] = False
 
     def reset_for_new_round(self):
+        """Clears hand"""
         self.hands = Hand()
 
 
 
 class Hand:
+    """Creates a hand instance, this instance holds the cards, tracks state with is_done, for players it also holds the bet"""
     def __init__(self):
         self.cards = []
         self.bet = 0
@@ -396,6 +444,7 @@ class Hand:
 
 
     def get_score(self):
+        """Checks and returns the value of the hands visible cards"""
         visible_cards = [card for card in self.cards if not card.get("face_down", False)]
 
         base_score = sum(card["value"] for card in visible_cards)
@@ -403,16 +452,22 @@ class Hand:
         return (base_score + score_modifier)
 
     def add_card(self, card, face_down=False): # Expects a single card-dict
+        """adds a card to the self.cards list. It can be fed any card, but usually called with card=self.deck.draw(),
+           face_down is mainly used for handling dealers hole card"""
         if card:
             card["face_down"] = face_down
             self.cards.append(card)
 
     def is_splittable(self):
+        """Checks if the hand is splittable"""
         if len(self.cards) == 2: #this might need tweeking, if i add cheats that alter this
             return (self.cards[0][1] == self.cards[1][1])
         return (False)
 
     def is_blackjack(self):
+        """Checks if the hand is blackjack (2 first cards has a value of 21). The first check is a bit redundant since
+            this method isn't called other places than the start of the round, when there's only been given 2 cards,
+            but have it here to future-proof for roguelike mechanics later on"""
         if len(self.cards) != self.max_blackjack_cards:
             return (False)
         return (self.get_score() == 21)  # Returns True or False
