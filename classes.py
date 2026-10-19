@@ -236,6 +236,11 @@ class BlackJack:
                 if hand.get_score() > 21:
                     continue
 
+#               # Discovered that I paid out twice. Consider moving blackjack immediate payout here.
+                if hand.has_blackjack:
+                    print(f"Well played, {player.name}{hand_label} won with blackjack!")
+                    continue
+
                 player_score = hand.get_score()
 
                 if dealer_busted or player_score > dealer_score:
@@ -440,16 +445,26 @@ class Hand:
         self.max_blackjack_cards = 2 #I've set it up like this so I can change it with powerups
         self.is_done = False
         self.is_doubled = False
+        self.has_blackjack = False
         #self.turn = -2 hadde en idé som krevde at jeg tracka tur, men gikk bort fra det
 
 
     def get_score(self):
-        """Checks and returns the value of the hands visible cards"""
+        """ Checks and returns the value of the hands visible cards.
+            Adjust score down if total goes over 21 and one or more cards are aces"""
         visible_cards = [card for card in self.cards if not card.get("face_down", False)]
-
         base_score = sum(card["value"] for card in visible_cards)
         score_modifier = sum(card["value_modifier"] for card in visible_cards)
-        return (base_score + score_modifier)
+
+        aces = sum(1 for card in visible_cards if card.get("rank") == "A")
+
+        score = base_score + score_modifier
+
+        while score > 21 and aces > 0:
+            score -= 10
+            aces -= 1
+
+        return (score)
 
     def add_card(self, card, face_down=False): # Expects a single card-dict
         """adds a card to the self.cards list. It can be fed any card, but usually called with card=self.deck.draw(),
@@ -470,7 +485,8 @@ class Hand:
             but have it here to future-proof for roguelike mechanics later on"""
         if len(self.cards) != self.max_blackjack_cards:
             return (False)
-        return (self.get_score() == 21)  # Returns True or False
+        self.has_blackjack = (self.get_score() == 21)
+        return  self.has_blackjack
 
 
 """
