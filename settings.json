@@ -1,0 +1,11 @@
+{
+  "dealer settings": {
+    "hole_card": {
+      "use hole card":  true,
+      "no hole card": false
+    }
+  },
+  "game settings": {
+    "shoe size": [1,10]
+  }
+}
