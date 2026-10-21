@@ -20,6 +20,8 @@ class BlackJack:
 
         self.dealer = Dealer(hole_card=self.hole_card)
 
+
+
     def add_players_to_table(self):
         """Method to add players to table"""
         print("Who shall join us for this round of wagers?")
@@ -154,16 +156,26 @@ class BlackJack:
             - That those cards have the same value/rank
             - That the player have remaining funds = initial bet.
             """
+            # Defining when split is available
             can_split = (
                 len(hand.cards) == 2
                 and hand.cards[0]["rank"] == hand.cards[1]["rank"]
                 and player.funds >= hand.bet
             )
 
+            # Defining when double down is available, this needs some more work to be able to
+            # accept settings for doubling on a split hand
+            can_double = (player.funds >= hand.bet
+                          and len(hand.cards) == 2
+            )
+
             options = ["[H]it", "[S]tand"]
             # Add split option if conditions are met
             if can_split:
                 options.append("s[P]lit")
+            # Add double option if conditions are met
+            if can_double:
+                options.append("[D]ouble")
 
             choice = input(f"Choose your action ({', '.join(options)}): ").strip().lower()
 
@@ -182,6 +194,14 @@ class BlackJack:
                 print(f"{player.name} stands!")
                 hand.is_done = True
 
+            elif choice == "d":
+                player.funds -= hand.bet
+                hand.bet += hand.bet
+                hand.add_card(self.deck.draw())
+                print(f"{player.name} doubled down!")
+                hand.is_done = True
+                break
+
             elif choice == "p" and can_split:
                 self._execute_split(player, hand_index)
 
@@ -193,11 +213,12 @@ class BlackJack:
         self.dealer.show_hole_card()
         ascii_render.display_table(self.dealer, self.players)
 
-        # Checks that not all players have busted.
+        # Checks for remaining players in play.
         active_hands = [
             hand for player in self.players
             for hand in player.hands
             if hand.get_score() <= 21
+            and not hand.has_blackjack
         ]
 
         if not active_hands:
