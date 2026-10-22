@@ -1,12 +1,12 @@
-import classes
-
+from classes import BlackJack
+""" Importing """
 
 
 
 
 def main():
     while True:
-        game = classes.BlackJack()
+        game = BlackJack()
 
         game.run_game()
 

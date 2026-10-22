@@ -456,8 +456,8 @@ class Player:
     def reset_for_new_round(self):
         """Clears hand"""
         self.hands = [Hand()]
-
-    def to_json(self):
+"""
+        def to_json(self):
         save = {
             "name":self.name,
             "funds":self.funds,
@@ -470,6 +470,8 @@ class Player:
 
     def from_json(self, load):
         return
+"""
+
 
 
 
