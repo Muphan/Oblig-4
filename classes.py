@@ -1,4 +1,5 @@
 import random
+import json
 import ascii_renderer as ascii_render
 
 
@@ -8,16 +9,18 @@ class BlackJack:
        Contains and handles the game logic.
        Game is started by calling BlackJack.run_game()"""
     def __init__(self):
-        # Ruleset:
+        # Ruleset and settings:
         self.hole_card = True
         self.shoe_size = 2
 
+        # Create a deck:
         self.deck = Deck(self.shoe_size)
-        self.players = []
-        #self.player = Player()
-        self.add_players_to_table()
-        #self.players.append(self.player) # So i can expand to more players later
 
+        # Create players
+        self.players = []
+        self.add_players_to_table()
+
+        # Creates dealer
         self.dealer = Dealer(hole_card=self.hole_card)
 
 
@@ -305,7 +308,7 @@ class BlackJack:
 
     def run_game(self):
         """The main game loop.
-           -Starts by checking if any players are broke, only relevant for 2nd,...,n-th iterations.
+           -Starts by checking if any players are broke, only relevant for 2nd to n-th round.
            -Ends game if all players are broke
            -Starts a new round start_round() returns True if all players or dealer have blackjack.
             False if there's players left to continue the round.
@@ -355,6 +358,11 @@ class BlackJack:
                 self.deck.collect_cards(hand.cards)
             player.reset_for_new_round()
 
+    def save_game(self):
+        return
+
+    def load_game(self):
+        return
 
 class Deck:
     """Class attributes defining the suits and ranks of playing cards"""
@@ -413,6 +421,15 @@ class Deck:
     def __len__(self):
         return (len(self.deck))
 
+    def to_json(self):
+        save = {
+            "deck":self.deck
+        }
+        return (save)
+
+    def from_json(self, load):
+        self.deck = load["deck"]
+
 
 class Player:
     """Creates a player object, takes name as a parameter when constructing the object"""
@@ -440,6 +457,21 @@ class Player:
         """Clears hand"""
         self.hands = [Hand()]
 
+    def to_json(self):
+        save = {
+            "name":self.name,
+            "funds":self.funds,
+            "bloodpool":self.bloodpool
+            "hands":[
+
+            ]
+        }
+        return (save)
+
+    def from_json(self, load):
+        return
+
+
 
 class Dealer:
     """Creates a dealer instance"""
@@ -455,6 +487,12 @@ class Dealer:
     def reset_for_new_round(self):
         """Clears hand"""
         self.hands = Hand()
+
+    def to_json(self):
+        return
+
+    def from_json(self):
+        return
 
 
 
@@ -477,6 +515,7 @@ class Hand:
         base_score = sum(card["value"] for card in visible_cards)
         score_modifier = sum(card["value_modifier"] for card in visible_cards)
 
+        # uses constructor to sum Aces in (visible) hand.
         aces = sum(1 for card in visible_cards if card.get("rank") == "A")
 
         score = base_score + score_modifier
@@ -508,6 +547,12 @@ class Hand:
             return (False)
         self.has_blackjack = (self.get_score() == 21)
         return  self.has_blackjack
+
+    def to_json(self):
+        return
+
+    def from_json(self):
+        return
 
 
 """

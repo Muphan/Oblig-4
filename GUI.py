@@ -211,7 +211,7 @@ class MainWindow(QMainWindow):
         icon_path = os.path.join(script_dir, "BloodJack.png")
 
         self.setWindowTitle("Bloodjack")
-        self.setGeometry(150, 300, 1920, 1080)
+        self.setGeometry(0, 0, 1920, 1080)
         self.setWindowIcon(QIcon(icon_path))
 
         # Create StackedWidget that holds the screens
