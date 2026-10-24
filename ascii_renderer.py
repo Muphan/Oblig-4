@@ -1,6 +1,13 @@
 from card_assets import SUIT_SYMBOLS, FACE_DOWN_CARD, CARD_TEMPLATE
 import re
 import shutil
+import os
+import subprocess
+
+def clear_screen():
+    command = 'cls' if os.name == 'nt' else 'clear'
+
+    subprocess.run(command, shell=True)
 
 
 ### Vibecoded
@@ -14,6 +21,7 @@ def center_ansi(text, width):
 
 def display_table(dealer, players):
     # Henter gjeldende terminalbredde (f.eks. 80 eller 120 tegn wide)
+    clear_screen()
     width = shutil.get_terminal_size((80, 20)).columns
 
     print("\n" + "=" * width)

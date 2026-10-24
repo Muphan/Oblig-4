@@ -1,8 +1,199 @@
+import os
 import random
 import json
+from dataclasses import dataclass, field, asdict
+from typing import List, Dict, Any
 import ascii_renderer as ascii_render
+import datetime
+from enum import Enum
+
+SAVES_DIR = "saves"
+
+class GamePhase(str, Enum):
+    BETTING = "BETTING"
+    DEALING = "DEALING"
+    PLAYER_TURN = "PLAYER_TURN"
+    DEALER_TURN = "DEALER_TURN"
+    EVALUATION = "EVALUATION"
+    ROUND_OVER = "ROUND_OVER"
+
+@dataclass
+class Hand:
+    """Creates a hand instance, this instance holds the cards, tracks state with is_done, for players it also holds the bet"""
+    cards: list = field(default_factory=list)
+    bet: int = 0
+    max_blackjack_cards: int = 2
+    is_done: bool = False
+    is_doubled: bool = False
+    has_blackjack: bool = False
+
+    def get_score(self):
+        """ Checks and returns the value of the hands visible cards.
+            Adjust score down if total goes over 21 and one or more cards are aces"""
+        visible_cards = [card for card in self.cards if not card.get("face_down", False)]
+        base_score = sum(card["value"] for card in visible_cards)
+        score_modifier = sum(card["value_modifier"] for card in visible_cards)
+
+        # uses constructor to sum Aces in (visible) hand.
+        aces = sum(1 for card in visible_cards if card.get("rank") == "A")
+
+        score = base_score + score_modifier
+
+        while score > 21 and aces > 0:
+            score -= 10
+            aces -= 1
+
+        return (score)
+
+    def add_card(self, card, face_down=False): # Expects a single card-dict
+        """adds a card to the self.cards list. It can be fed any card, but usually called with card=self.deck.draw(),
+           face_down is mainly used for handling dealers hole card"""
+        if card:
+            card["face_down"] = face_down
+            self.cards.append(card)
+
+    def is_splittable(self):
+        """Checks if the hand is splittable"""
+        if len(self.cards) == 2: #this might need tweeking, if i add cheats that alter this
+            return (self.cards[0]["rank"] == self.cards[1]["rank"])
+        return (False)
+
+    def is_blackjack(self):
+        """Checks if the hand is blackjack (2 first cards has a value of 21). The first check is a bit redundant since
+            this method isn't called other places than the start of the round, when there's only been given 2 cards,
+            but have it here to future-proof for roguelike mechanics later on"""
+        if len(self.cards) != self.max_blackjack_cards:
+            return (False)
+        self.has_blackjack = (self.get_score() == 21)
+        return  self.has_blackjack
+
+@dataclass # swapped to dataclasses to make the save load process more seamless
+class Player:
+    """Creates a player object, takes name as a parameter when constructing the object"""
+    name: str = "Player"
+    funds: int = 10000
+    bloodpool: bool = False
+    blood: int = 5000
+    hands: List['Hand'] = field(default_factory=list)
+
+    def __post_init__(self):
+        if not self.hands:
+            self.hands = [Hand()]
+
+    def bet(self, amount):
+        """Check that player have enough funds, subracts the bet from available funds if they don't
+            prints a message and returns False if they do not have enough funds """
+        if self.funds >= amount:
+            self.funds -= amount
+            self.hands[0].bet += amount
+            print(f"{self.name} bet {amount}.")
+            return (True)
+        else:
+            print(f"You don't have the funds for such a grand gamble!")
+            return (False)
+
+    def reset_for_new_round(self):
+        """Clears hand"""
+        self.hands = [Hand()]
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        """Converts saved dictionary data back into Hand-instances"""
+        raw_hands = data.pop("hands", [])
+        hands = [Hand(**h) for h in raw_hands]
+        return cls(**data, hands=hands)
+
+@dataclass
+class Dealer:
+    """Creates a dealer instance"""
+    bank:       int             = 10000
+    hole_card:  bool            = True
+    hand:       Hand            = field(default_factory=Hand)
+
+    def show_hole_card(self):
+        """As dealers second card is drawn face down, this method turns that card to face up"""
+        if len(self.hand.cards) > 1:
+            self.hand.cards[1]["face_down"] = False
+
+    def reset_for_new_round(self):
+        """Clears hand"""
+        self.hand = Hand()
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        raw_hand = data.pop("hand", {})
+        hand = Hand(**raw_hand) if isinstance(raw_hand, dict) else Hand()
+        return cls(bank=data.get("bank", 10000), hole_card=data.get("hole_card", True), hand=hand)
+
+@dataclass
+class Deck:
+    """Class attributes defining the suits and ranks of playing cards"""
+    num_decks:    int                       = 6
+    deck:         List[Dict[str, Any]]      = field(default_factory=list)
+    discards:     List[Dict[str, Any]]      = field(default_factory=list)
+    # I dont use discards for anything yet,
+    # but when discard pile rule is implemented the discarded cards are stored here.
+
+    SUITS = ["Hearts", "Clubs", "Spades", "Diamonds"]
+    RANKS = [("2", 2), ("3", 3), ("4", 4), ("5", 5),
+             ("6", 6), ("7", 7), ("8", 8), ("9", 9),
+             ("10", 10), ("J", 10), ("Q", 10), ("K", 10),
+             ("A", 11)]
 
 
+    def __post_init__(self):
+        """Checks if a deck exists (from load_game()) before generating a deck"""
+        if not self.deck and not self.discards:
+            self.build_deck()
+            self.shuffle()
+
+    def build_deck(self):
+        """Generates the "shoe" (collection of decks); generator runs: <for suit in SUITS for rank in RANKS>,
+                    this creates one complete deck for each loop in range(num_decks), and populates the list <self.deck>.
+                    Each card is a dictionary containing important information:
+                    suit: str(card suit)
+                    rank: str(card rank)
+                    value: int(card value)
+                    is_marked: bool
+                    is_cursed: bool
+                    face_down: bool
+                    value_modifier: int
+                    """
+        self.deck = [
+            {
+                "suit": suit,
+                "rank": rank[0],
+                "value": rank[1],
+                "is_marked": False,
+                "is_cursed": False,
+                "face_down": False,
+                "value_modifier": 0
+            }
+            for _ in range(self.num_decks)
+            for suit in self.SUITS
+            for rank in self.RANKS
+        ]
+
+    def shuffle(self):
+        """Shuffles the deck"""
+        random.shuffle(self.deck)
+
+    def draw(self):
+        """Draws one card from the deck"""
+        if self.deck:
+            drawn_card = self.deck.pop(0)
+            return drawn_card
+        return (None)
+
+    def collect_cards(self, cards):
+        """Collects a list of cards, resets facing and puts them back in deck"""
+        for card in cards:
+            card["face_down"] = False
+            # If roguelike-mods needs resetting between rounds in the future, add them here
+            self.deck.append(card)
+
+    def __len__(self):
+        return (len(self.deck))
 
 class BlackJack:
     """Main instance, is owner of Player, Dealer and Deck
@@ -12,6 +203,11 @@ class BlackJack:
         # Ruleset and settings:
         self.hole_card = True
         self.shoe_size = 2
+
+        # State handling for save/load and turn handling
+        self.game_phase = GamePhase.BETTING
+        self.current_player_index = 0
+        self.current_hand_index = 0
 
         # Create a deck:
         self.deck = Deck(self.shoe_size)
@@ -23,7 +219,18 @@ class BlackJack:
         # Creates dealer
         self.dealer = Dealer(hole_card=self.hole_card)
 
+    @property
+    def current_player(self):
+        if 0 <= self.current_player_index < len(self.players):
+            return self.players[self.current_player_index]
+        return None
 
+    @property
+    def current_hand(self):
+        player = self.current_player
+        if player and 0 <= self.current_hand_index < len(player.hands):
+            return player.hands[self.current_hand_index]
+        return None
 
     def add_players_to_table(self):
         """Method to add players to table"""
@@ -103,11 +310,17 @@ class BlackJack:
 
     def start_round(self):
         """Starts the round of the game, handles the initial dealing of cards and initiates the blackjack check"""
+        self.game_phase = GamePhase.BETTING
+        self.current_player_index = 0
+        self.current_hand_index = 0
+
         self.deck.shuffle()
 
         # Prompt for bets
         for player in self.players:
             self._prompt_player_bet(player)
+
+        self.game_phase = GamePhase.DEALING
 
         # Deals out 2 cards, it's split up to not have to have a method just to handle dealers 2nd card
         for player in self.players:
@@ -117,28 +330,27 @@ class BlackJack:
             player.hands[0].add_card(self.deck.draw())
         self.dealer.hand.add_card(self.deck.draw(), face_down=True)
 
-        #Draw table
-        #ascii.display_table(self.dealer, self.players)
-
         # Checks for blackjacks
         check_game_state = self.check_initial_blackjacks()
+        if not check_game_state:
+            self.game_phase = GamePhase.PLAYER_TURN
 
         # Round opening is done
         return (check_game_state)
 
     def play_player_turns(self):
         """Loops through each player and their hands, that aren't done, and lets them make choices"""
-        for player in self.players:
-            i = 0
-            while i < len(player.hands):
-                hand = player.hands[i]
-
+        for player_idx, player in enumerate(self.players):
+            self.current_player_index = player_idx
+            hand_idx = 0
+            while hand_idx < len(player.hands):
+                self.current_hand_index = hand_idx
+                hand = player.hands[hand_idx]
                 if hand.is_done:
-                    i += 1
-                    continue # Skips if player got blackjack.
-
-                self._handle_hand_turn(player, hand, hand_index=i)
-                i += 1
+                    hand_idx += 1
+                    continue
+                self._handle_hand_turn(player, hand, hand_index=hand_idx)
+                hand_idx += 1
 
     def _handle_hand_turn(self, player, hand, hand_index=None):
         """Handles a single hand, takes player instance, player.hand instance and index of the hand"""
@@ -157,7 +369,7 @@ class BlackJack:
             Checks if player hand qualifies for splitting returns True if:
             - Only have 2 cards
             - That those cards have the same value/rank
-            - That the player have remaining funds = initial bet.
+            - That the player have funds = initial bet.
             """
             # Defining when split is available
             can_split = (
@@ -168,8 +380,9 @@ class BlackJack:
 
             # Defining when double down is available, this needs some more work to be able to
             # accept settings for doubling on a split hand
-            can_double = (player.funds >= hand.bet
-                          and len(hand.cards) == 2
+            can_double = (
+                player.funds >= hand.bet
+                and len(hand.cards) == 2
             )
 
             options = ["[H]it", "[S]tand"]
@@ -213,6 +426,7 @@ class BlackJack:
 
     def play_dealer_turn(self):
         """Dealer reveals hand and draws until minimum 17"""
+        self.game_phase = GamePhase.DEALER_TURN
         self.dealer.show_hole_card()
         ascii_render.display_table(self.dealer, self.players)
 
@@ -245,6 +459,7 @@ class BlackJack:
 
     def settle_bets(self):
         """Settles bets for all active players"""
+        self.game_phase = GamePhase.EVALUATION
         dealer_score = self.dealer.hand.get_score()
         dealer_busted = dealer_score > 21
 
@@ -358,203 +573,93 @@ class BlackJack:
                 self.deck.collect_cards(hand.cards)
             player.reset_for_new_round()
 
-    def save_game(self):
-        return
+    def save_game(self, save_name: str):
+        """Save the game to a json file in the saves/-folder"""
+        if not os.path.exists(SAVES_DIR):
+            os.makedirs(SAVES_DIR)
 
-    def load_game(self):
-        return
+        clean_name = "".join(c for c in save_name if c.isalnum() or c in (" ", "_", "-")).strip()
+        if not clean_name:
+            clean_name = "quicksave"
 
-class Deck:
-    """Class attributes defining the suits and ranks of playing cards"""
-    SUITS = ["Hearts", "Clubs", "Spades", "Diamonds"]
-    RANKS = [("2", 2), ("3", 3), ("4", 4), ("5", 5),
-             ("6", 6), ("7", 7), ("8", 8), ("9", 9),
-             ("10", 10), ("J", 10), ("Q", 10), ("K", 10),
-             ("A", 11)]
+        filepath = os.path.join(SAVES_DIR, f"{clean_name}.json")
 
-    def __init__(self, num_decks=1):
-        """Generates the "shoe" (collection of decks); generator runs: <for suit in SUITS for rank in RANKS>,
-            this creates one complete deck for each loop in range(num_decks), and populates the list <self.deck>.
-            Each card is a dictionary containing important information:
-            suit: str(card suit)
-            rank: str(card rank)
-            value: int(card value)
-            is_marked: bool
-            is_cursed: bool
-            face_down: bool
-            value_modifier: int
-            """
-
-        self.deck = [
-            {
-                "suit": suit,
-                "rank": rank[0],
-                "value": rank[1],
-                "is_marked": False,
-                "is_cursed": False,
-                "face_down": False,
-                "value_modifier": 0
-            }
-            for _ in range(num_decks)
-            for suit in self.SUITS
-            for rank in self.RANKS
-        ]
-
-    def shuffle(self):
-        """Shuffles the deck"""
-        random.shuffle(self.deck)
-
-    def draw(self):
-        """Draws one card from the deck"""
-        if self.deck:
-            drawn_card = self.deck.pop()
-            return drawn_card
-        return (None)
-
-    def collect_cards(self, cards):
-        """Collects a list of cards, resets facing and puts them back in deck"""
-        for card in cards:
-            card["face_down"] = False
-            # If roguelike-mods needs resetting between rounds in the future, add them here
-            self.deck.append(card)
-
-    def __len__(self):
-        return (len(self.deck))
-
-    def to_json(self):
-        save = {
-            "deck":self.deck
+        save_data = {
+            "metadata": {
+                "save_name": clean_name,
+                "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
+                "player_name": self.players[0].name if self.players else "Player",
+                "funds": self.players[0].funds if self.players else 0,
+            },
+            "players": [asdict(player) for player in self.players],
+            "dealer": asdict(self.dealer),
+            "deck": asdict(self.deck),
+            "current_player_index": self.current_player_index,
+            "current_hand_index": self.current_hand_index,
+            "game_phase": self.game_phase.value if isinstance(self.game_phase, GamePhase) else self.game_phase
         }
-        return (save)
 
-    def from_json(self, load):
-        self.deck = load["deck"]
-
-
-class Player:
-    """Creates a player object, takes name as a parameter when constructing the object"""
-    def __init__(self, name="Player"):
-        self.name = name
-        self.funds = 10000 #D$
-        self.bloodpool = 400 #cL
-
-        # Changed the player hands to be handled as list, s player can have two hands if they choose to split their hand
-        self.hands = [Hand()]
-
-    def bet(self, amount):
-        """Check that player have enough funds, subracts the bet from available funds if they don't
-            prints a message and returns False if they do not have enough funds """
-        if self.funds >= amount:
-            self.funds -= amount
-            self.hands[0].bet += amount
-            print(f"{self.name} bet {amount}.")
-            return (True)
-        else:
-            print(f"You don't have the funds for such a grand gamble!")
-            return (False)
-
-    def reset_for_new_round(self):
-        """Clears hand"""
-        self.hands = [Hand()]
-"""
-        def to_json(self):
-        save = {
-            "name":self.name,
-            "funds":self.funds,
-            "bloodpool":self.bloodpool
-            "hands":[
-
-            ]
-        }
-        return (save)
-
-    def from_json(self, load):
-        return
-"""
+        try:
+            with open(filepath, "w", encoding="utf-8") as f:
+                json.dump(save_data, f, indent=4)
+            print(f"Game saved to {filepath}")
+            return True, filepath
+        except Exception as e:
+            print(f"Error saving game: {e}")
+            return False, str(e)
 
 
+    def load_game(self, filepath: str):
+        """Load gamestate from a json file"""
+        if not os.path.exists(filepath):
+            return False
 
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                data = json.load(f)
 
-class Dealer:
-    """Creates a dealer instance"""
-    def __init__(self, hole_card=True):
-        self.bank = 100000
-        self.hole_card = hole_card
-        self.hand = Hand()
+            self.players = [Player.from_dict(player) for player in data.get("players", [])]
+            self.dealer = Dealer.from_dict(data.get("dealer", {}))
+            self.deck = Deck(**data.get("deck", {}))
+            self.current_player_index = data.get("current_player_index", 0)
+            self.current_hand_index = data.get("current_hand_index", 0)
 
-    def show_hole_card(self):
-        """As dealers second card is drawn face down, this method turns that card to face up"""
-        self.hand.cards[1]["face_down"] = False
+            raw_phase = data.get("game_phase", "BETTING")
+            self.game_phase = GamePhase(raw_phase) if raw_phase in GamePhase.__members__ else GamePhase.BETTING
 
-    def reset_for_new_round(self):
-        """Clears hand"""
-        self.hands = Hand()
+            print(f"Game loaded from {filepath}")
+            return True
 
-    def to_json(self):
-        return
+        except Exception as e:
+            print(f"Error loading game: {e}")
+            return False
 
-    def from_json(self):
-        return
+    @staticmethod
+    def get_all_saves():
+        if not os.path.exists(SAVES_DIR):
+            return []
+        saves = []
+        for filename in os.listdir(SAVES_DIR):
+            if filename.endswith(".json"):
+                filepath = os.path.join(SAVES_DIR, filename)
+                try:
+                    with open(filepath, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                        metadata = data.get("metadata", {})
+                        metadata['filepath'] = filepath
+                        metadata['filename'] = filename
+                        saves.append(metadata)
+                except Exception:
+                    continue
+
+        saves.sort(key=lambda item: item.get("timestamp", ""), reverse=True)
+        return saves
 
 
 
-class Hand:
-    """Creates a hand instance, this instance holds the cards, tracks state with is_done, for players it also holds the bet"""
-    def __init__(self):
-        self.cards = []
-        self.bet = 0
-        self.max_blackjack_cards = 2 #I've set it up like this so I can change it with powerups
-        self.is_done = False
-        self.is_doubled = False
-        self.has_blackjack = False
-        #self.turn = -2 hadde en idé som krevde at jeg tracka tur, men gikk bort fra det
 
 
-    def get_score(self):
-        """ Checks and returns the value of the hands visible cards.
-            Adjust score down if total goes over 21 and one or more cards are aces"""
-        visible_cards = [card for card in self.cards if not card.get("face_down", False)]
-        base_score = sum(card["value"] for card in visible_cards)
-        score_modifier = sum(card["value_modifier"] for card in visible_cards)
 
-        # uses constructor to sum Aces in (visible) hand.
-        aces = sum(1 for card in visible_cards if card.get("rank") == "A")
-
-        score = base_score + score_modifier
-
-        while score > 21 and aces > 0:
-            score -= 10
-            aces -= 1
-
-        return (score)
-
-    def add_card(self, card, face_down=False): # Expects a single card-dict
-        """adds a card to the self.cards list. It can be fed any card, but usually called with card=self.deck.draw(),
-           face_down is mainly used for handling dealers hole card"""
-        if card:
-            card["face_down"] = face_down
-            self.cards.append(card)
-
-    def is_splittable(self):
-        """Checks if the hand is splittable"""
-        if len(self.cards) == 2: #this might need tweeking, if i add cheats that alter this
-            return (self.cards[0][1] == self.cards[1][1])
-        return (False)
-
-    def is_blackjack(self):
-        """Checks if the hand is blackjack (2 first cards has a value of 21). The first check is a bit redundant since
-            this method isn't called other places than the start of the round, when there's only been given 2 cards,
-            but have it here to future-proof for roguelike mechanics later on"""
-        if len(self.cards) != self.max_blackjack_cards:
-            return (False)
-        self.has_blackjack = (self.get_score() == 21)
-        return  self.has_blackjack
-
-    def to_json(self):
-        return
-
-    def from_json(self):
-        return
 
 
 """
