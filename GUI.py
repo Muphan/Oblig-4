@@ -867,8 +867,8 @@ class GameOverWidget(QWidget):
 
         layout.addWidget(title)
         layout.addWidget(sub_title)
-        layout.addWidget(restart_btn)
-        layout.addWidget(menu_btn)
+        layout.addWidget(restart_btn, alignment=Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(menu_btn, alignment=Qt.AlignmentFlag.AlignCenter)
         self.setLayout(layout)
 
     def on_restart(self):
