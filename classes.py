@@ -9,6 +9,7 @@ from enum import Enum
 
 SAVES_DIR = "saves"
 
+# Helper class to track gamephase in the app
 class GamePhase(str, Enum):
     BETTING = "BETTING"
     DEALING = "DEALING"
@@ -203,6 +204,10 @@ class BlackJack:
         # Ruleset and settings:
         self.hole_card = True
         self.shoe_size = 2
+        self.dealer_stand_threshold = 17 # The assignment says dealer stands on >17, but BJ rules says >=17
+        self.hit_on_soft = False          # If dealer should hit on soft 17 i.e Ace + 6
+        self.MAX_HANDS = 4                  # Potential max hands resulting from splits
+        self.allow_double_after_split = True # If player is allowed to double on a split hand
 
         # State handling for save/load and turn handling
         self.game_phase = GamePhase.BETTING
@@ -219,6 +224,8 @@ class BlackJack:
         # Creates dealer
         self.dealer = Dealer(hole_card=self.hole_card)
 
+    #added properties to track current player and hand to
+    #save where in a turn the game is when saving.
     @property
     def current_player(self):
         if 0 <= self.current_player_index < len(self.players):
@@ -343,23 +350,27 @@ class BlackJack:
         for player_idx, player in enumerate(self.players):
             self.current_player_index = player_idx
             hand_idx = 0
+            # Loops through all the hands of a player
             while hand_idx < len(player.hands):
                 self.current_hand_index = hand_idx
                 hand = player.hands[hand_idx]
                 if hand.is_done:
                     hand_idx += 1
                     continue
+                # starts the hand handling
                 self._handle_hand_turn(player, hand, hand_index=hand_idx)
                 hand_idx += 1
 
     def _handle_hand_turn(self, player, hand, hand_index=None):
         """Handles a single hand, takes player instance, player.hand instance and index of the hand"""
         while not hand.is_done:
+            #draws "game table" in terminal
             ascii_render.display_table(self.dealer, self.players)
 
             hand_label = f" (Hand {hand_index + 1})" if len(player.hands) > 1 else ""
             print(f"--- {player.name.upper()}'S TURN{hand_label}")
 
+            #Auto stand on a 21
             if hand.get_score() == 21:
                 print(f"{player.name} got 21 and stands automatically!")
                 hand.is_done = True
@@ -370,19 +381,31 @@ class BlackJack:
             - Only have 2 cards
             - That those cards have the same value/rank
             - That the player have funds = initial bet.
+            - Check amount of current hands, apparently casinos allow up to 3-4 hands
+            TODO: implement exception for aces, as you're only allowed to split one ace pair, and are not allowed to hit 
+                  on a split ace. You only get 1 card per split Ace.
             """
             # Defining when split is available
             can_split = (
+
+                # checks that they only have a starting hand
                 len(hand.cards) == 2
+                # checks that the hand is a "pair"
                 and hand.cards[0]["rank"] == hand.cards[1]["rank"]
+                # check if player has enough funds
                 and player.funds >= hand.bet
+                # checks if they are bellow the max hand threshold
+                and len(player.hands) < self.MAX_HANDS
             )
 
-            # Defining when double down is available, this needs some more work to be able to
-            # accept settings for doubling on a split hand
+            # Defining when double down is available
             can_double = (
+                # check if player has enough funds
                 player.funds >= hand.bet
+                # checks that they only have a starting hand
                 and len(hand.cards) == 2
+                # checks if they're allowed to double a split (default = True)
+                and (self.allow_double_after_split or len(player.hands) < 2)
             )
 
             options = ["[H]it", "[S]tand"]
@@ -393,8 +416,10 @@ class BlackJack:
             if can_double:
                 options.append("[D]ouble")
 
+            # Prompt player to choose from available options
             choice = input(f"Choose your action ({', '.join(options)}): ").strip().lower()
 
+            # if HIT
             if choice == "h":
                 hand.add_card(self.deck.draw())
                 print(f"{player.name} drew a card.")
@@ -406,10 +431,12 @@ class BlackJack:
                     self.dealer.bank += hand.bet
                     hand.is_done = True
 
+            # STAND
             elif choice == "s":
                 print(f"{player.name} stands!")
                 hand.is_done = True
 
+            # DOUBLE
             elif choice == "d":
                 player.funds -= hand.bet
                 hand.bet += hand.bet
@@ -418,16 +445,20 @@ class BlackJack:
                 hand.is_done = True
                 break
 
+            # SPLIT
             elif choice == "p" and can_split:
                 self._execute_split(player, hand_index)
 
+            # INVALID input
             else:
                 print(f"INVALID! Chose a valid option, {player.name}!\n")
 
     def play_dealer_turn(self):
         """Dealer reveals hand and draws until minimum 17"""
         self.game_phase = GamePhase.DEALER_TURN
+        # sets hole card to face up
         self.dealer.show_hole_card()
+        # redraws table
         ascii_render.display_table(self.dealer, self.players)
 
         # Checks for remaining players in play.
@@ -444,10 +475,11 @@ class BlackJack:
 
         print("--- DEALERS TURN ---")
 
-        while self.dealer.hand.get_score() < 17:
+        while self.dealer.hand.get_score() < self.dealer_stand_threshold: # dealer_stand_threshold default: 17
             print(f"Dealer draws a card...")
             card = self.deck.draw()
             self.dealer.hand.add_card(card)
+            # redraw table
             ascii_render.display_table(self.dealer, self.players)
 
         dealer_score = self.dealer.hand.get_score()
@@ -461,13 +493,15 @@ class BlackJack:
         """Settles bets for all active players"""
         self.game_phase = GamePhase.EVALUATION
         dealer_score = self.dealer.hand.get_score()
-        dealer_busted = dealer_score > 21
+        dealer_busted = dealer_score > 21 #Boolean
 
         print("\n" + "=" * 40)
         print("            FINAL TALLY            ")
         print("=" * 40)
 
+        # Iterate over players
         for player in self.players:
+            # Iterate over player hands (if they split)
             for i, hand in enumerate(player.hands):
                 hand_label = f" (Hand {i + 1})" if len(player.hands) > 1 else ""
 
@@ -475,25 +509,32 @@ class BlackJack:
                 if hand.get_score() > 21:
                     continue
 
-#               # Discovered that I paid out twice. Consider moving blackjack immediate payout here.
+#               # Discovered that I paid out twice. Consider moving the immediate blackjack payout here.
+                # Otherwisee I need to store or pass the payout sum for BJ to this method
+                # Solved by giving Hand the attribute has_blackjack,
+                # setting the bool with is_blackjack and returning has_blackjack for all the checks that pertains to.
                 if hand.has_blackjack:
                     print(f"Well played, {player.name}{hand_label} won with blackjack!")
                     continue
 
                 player_score = hand.get_score()
 
+                # checks if dealer busted or player hand beats dealer.
                 if dealer_busted or player_score > dealer_score:
                     payout = hand.bet * 2
                     player.funds += payout
-                    self.dealer.bank -= hand.bet
+                    self.dealer.bank -= hand.bet #dealer bank only relevant for imagined rogelike mode.
                     print(f"Congratulations! {player.name}{hand_label} beats dealer!\n({player_score} vs {dealer_score})\n{player.name} won a payout of {payout} D$!")
 
+                # Check for push
                 elif player_score == dealer_score:
                     player.funds += hand.bet
                     print(f"PUSH! {player.name}'s hand is equal to dealers!")
 
+                # If none of the above, dealer has won.
                 else:
                     self.dealer.bank += hand.bet
+                    # I could follow up with hand.bet = 0, but the hand will be wiped after this anyway.
                     print(f"LOSS! Dealer beats {player.name}'s hand!")
 
             print("=" * 40 + "\n")
@@ -501,6 +542,10 @@ class BlackJack:
 
     def _execute_split(self, player, hand_index):
         """Helper function for to split the hand"""
+        #  <s>Make an option/setting to control if player is allowed to resplit</s>
+        #  (default rule implemented: allowed up to 4 total hands, set to 2 to disallow).
+        #  Rules also state that split aces are not allowed to be played further, might
+        #  implement a toggle or game mechanic to bypass that in the future.
         current_hand = player.hands[hand_index]
 
         # Takes bet out of funds
@@ -518,6 +563,10 @@ class BlackJack:
         current_hand.add_card(self.deck.draw())
         new_hand.add_card(self.deck.draw())
 
+        if split_card.get("rank") == "A":
+            current_hand.is_done = True
+            new_hand.is_done = True
+
         player.hands.insert(hand_index + 1, new_hand)
         print(f"{player.name} split their hand! I congratulate you on your daring play!")
 
@@ -525,16 +574,17 @@ class BlackJack:
         """The main game loop.
            -Starts by checking if any players are broke, only relevant for 2nd to n-th round.
            -Ends game if all players are broke
-           -Starts a new round start_round() returns True if all players or dealer have blackjack.
+           -Starts a new round, start_round() returns:
+            True if all players or dealer have blackjack.
             False if there's players left to continue the round.
             -Then it runs player turns -> dealer turn -> settles bets -> cleans up
-           -Players given choice to play another round or quit"""
+            -Players given choice to play another round or quit"""
         print("\n=== THE TABLE IS SET ===")
 
         while True:
             for player in self.players[:]:
                 if player.funds <= 0:
-                    print(f"\n {player.name} has run out of funds, and is cast out")
+                    print(f"\n {player.name} has run out of funds, and is cast down into the pits!")
                     self.players.remove(player)
 
             # Check if there are players remaining
@@ -556,13 +606,14 @@ class BlackJack:
             print("\n" + "-" * 40)
             choice = input("Press [ENTER] to play another round, or [Q]uit to leave the table: ").strip().lower()
 
+            # Quit:
             if choice == "q":
                 print("\nYou gather your winnings and step away from the table. Until next time, mortal...")
                 break
 
     def cleanup_round(self):
         """Collects cards from hands and puts them back into the deck.
-           This method will need a small rewrite if I add an option in settings for having a discard pile.
+           When a discard-pile is implemented, Deck will handle incoming cards based on the settings.
            The current code treats the deck and played cards like a casino with advanced shuffling machines"""
         if hasattr(self.dealer.hand, "cards"):
             self.deck.collect_cards(self.dealer.hand.cards)
@@ -578,12 +629,16 @@ class BlackJack:
         if not os.path.exists(SAVES_DIR):
             os.makedirs(SAVES_DIR)
 
+        # cleans up savegame name, checks each character in the string to see if it's an alphanumeric
+        # or one of the allowed special characters
         clean_name = "".join(c for c in save_name if c.isalnum() or c in (" ", "_", "-")).strip()
         if not clean_name:
             clean_name = "quicksave"
 
+        # constructs filepath by joining savegame-name with default filepath
         filepath = os.path.join(SAVES_DIR, f"{clean_name}.json")
 
+        # .json template, adds metadata for preview in gui
         save_data = {
             "metadata": {
                 "save_name": clean_name,
@@ -634,9 +689,11 @@ class BlackJack:
             print(f"Error loading game: {e}")
             return False
 
+
+    # method to fetch all save games for displaying in "load game"-screen
     @staticmethod
     def get_all_saves():
-        if not os.path.exists(SAVES_DIR):
+        if not os.path.exists(SAVES_DIR): # check if save game directory exists
             return []
         saves = []
         for filename in os.listdir(SAVES_DIR):

@@ -22,6 +22,7 @@ class GamePhase(str, Enum):
 
 @dataclass
 class Hand:
+    """Oppretter en hånd-instans. Holder kortene, sporer is_done og har bet for spillere."""
     cards: list = field(default_factory=list)
     bet: int = 0
     max_blackjack_cards: int = 2
@@ -29,30 +30,48 @@ class Hand:
     is_doubled: bool = False
     has_blackjack: bool = False
 
-    def get_score(self):
+    def get_score(self) -> int:
+        """Sjekker og returnerer poengsummen for synlige kort.
+        Justerer ned dersom summen går over 21 og hånden har Ess."""
         visible_cards = [card for card in self.cards if not card.get("face_down", False)]
         base_score = sum(card["value"] for card in visible_cards)
         score_modifier = sum(card["value_modifier"] for card in visible_cards)
-        aces = sum(1 for card in visible_cards if card.get("rank") == "A")
 
+        aces = sum(1 for card in visible_cards if card.get("rank") == "A")
         score = base_score + score_modifier
+
         while score > 21 and aces > 0:
             score -= 10
             aces -= 1
 
         return score
 
-    def add_card(self, card, face_down=False):
+    def is_soft(self) -> bool:
+        """Returnerer True dersom et Ess fremdeles teller som 11 uten å buste."""
+        visible_cards = [card for card in self.cards if not card.get("face_down", False)]
+        score = sum(card["value"] for card in visible_cards) + sum(card["value_modifier"] for card in visible_cards)
+        aces = sum(1 for card in visible_cards if card.get("rank") == "A")
+
+        while score > 21 and aces > 0:
+            score -= 10
+            aces -= 1
+
+        return aces > 0
+
+    def add_card(self, card: dict, face_down: bool = False):
+        """Legger til et kort i hånden. face_down brukes for dealerens skjulte kort."""
         if card:
             card["face_down"] = face_down
             self.cards.append(card)
 
-    def is_splittable(self):
+    def is_splittable(self) -> bool:
+        """Sjekker om hånden har to kort av lik verdi/rangering."""
         if len(self.cards) == 2:
             return self.cards[0]["rank"] == self.cards[1]["rank"]
         return False
 
-    def is_blackjack(self):
+    def is_blackjack(self) -> bool:
+        """Sjekker om de to første kortene gir 21."""
         if len(self.cards) != self.max_blackjack_cards:
             return False
         self.has_blackjack = (self.get_score() == 21)
@@ -61,6 +80,7 @@ class Hand:
 
 @dataclass
 class Player:
+    """Oppretter en spiller-instans."""
     name: str = "Player 1"
     funds: int = 10000
     bloodpool: bool = False
@@ -71,7 +91,8 @@ class Player:
         if not self.hands:
             self.hands = [Hand()]
 
-    def bet(self, amount: int):
+    def bet(self, amount: int) -> bool:
+        """Trekker fra saldo dersom spilleren har nok midler."""
         if self.funds >= amount and amount > 0:
             self.funds -= amount
             self.hands[0].bet += amount
@@ -79,10 +100,12 @@ class Player:
         return False
 
     def reset_for_new_round(self):
+        """Nullstiller hender for en ny runde."""
         self.hands = [Hand()]
 
     @classmethod
     def from_dict(cls, data: dict):
+        """Gjenoppretter Player og tilhørende Hand-objekter fra JSON-data."""
         raw_hands = data.pop("hands", [])
         hands = [Hand(**h) for h in raw_hands]
         return cls(**data, hands=hands)
@@ -90,11 +113,13 @@ class Player:
 
 @dataclass
 class Dealer:
+    """Oppretter dealer-instansen."""
     bank: int = 100000
     hole_card: bool = True
     hand: Hand = field(default_factory=Hand)
 
     def show_hole_card(self):
+        """Snur dealerens skjulte kort face-up."""
         if len(self.hand.cards) > 1:
             self.hand.cards[1]["face_down"] = False
 
@@ -110,6 +135,7 @@ class Dealer:
 
 @dataclass
 class Deck:
+    """Håndterer kortstokken (skoen). Generator bygger num_decks komplette sett."""
     num_decks: int = 6
     deck: List[Dict[str, Any]] = field(default_factory=list)
     discards: List[Dict[str, Any]] = field(default_factory=list)
@@ -145,12 +171,14 @@ class Deck:
         random.shuffle(self.deck)
 
     def draw(self):
+        """Trekker ett kort. Stokker og bygger ny bunke automatisk dersom skoen blir tom."""
         if not self.deck:
             self.build_deck()
             self.shuffle()
         return self.deck.pop(0) if self.deck else None
 
-    def collect_cards(self, cards):
+    def collect_cards(self, cards: list):
+        """Samler inn brukte kort, tilbakestiller face_down og legger dem i stokken."""
         for card in cards:
             card["face_down"] = False
             self.deck.append(card)
@@ -160,17 +188,25 @@ class Deck:
 
 
 class BlackJack:
-    """GUI-vennlig spillmotor med innstillinger for uendelig bank og regelkonfigurasjon."""
-    def __init__(self, shoe_size=2):
+    """Hovedspillmotor tilpasset GUI med konfigurerbare hus- og spilerregler."""
+
+    def __init__(self, shoe_size: int = 2):
+        # Regelinnstillinger
         self.hole_card = True
         self.shoe_size = shoe_size
-        self.infinite_bank = True  # Standard: Husets bank går aldri tom / uendelig
+        self.infinite_bank = True  # Husets bank er uendelig/begrenset
+        self.dealer_stand_threshold = 17  # Standard: 17 (kan settes til 18 for oppgavetekst)
+        self.hit_on_soft = False  # Dealer trekker på Soft N (f.eks. Soft 17)
+        self.MAX_HANDS = 4  # Maks antall hender tillatt ved splitting
+        self.allow_double_after_split = True  # Tillat dobling etter split
 
+        # Tilstander
         self.game_phase = GamePhase.BETTING
         self.current_player_index = 0
         self.current_hand_index = 0
         self.round_summary = ""
 
+        # Opprett instanser
         self.deck = Deck(self.shoe_size)
         self.players = [Player("Player 1")]
         self.dealer = Dealer(hole_card=self.hole_card)
@@ -204,6 +240,7 @@ class BlackJack:
         return False
 
     def start_round(self):
+        """Starter runden, deler ut 2 kort og sjekker initial Blackjacks."""
         self.game_phase = GamePhase.DEALING
         self.deck.shuffle()
 
@@ -224,6 +261,7 @@ class BlackJack:
             self.current_hand_index = 0
 
     def check_initial_blackjacks(self) -> bool:
+        """Sjekker om dealer eller spillere får åpnings-Blackjack."""
         dealer_is_jacked = self.dealer.hand.is_blackjack()
 
         if dealer_is_jacked:
@@ -252,6 +290,7 @@ class BlackJack:
         return all_players_jackpot
 
     def hit(self):
+        """Trekker ett kort for den aktive hånden."""
         hand = self.current_hand
         if not hand or hand.is_done:
             return
@@ -268,6 +307,7 @@ class BlackJack:
             self.advance_turn()
 
     def stand(self):
+        """Står på den aktive hånden og avanserer turen."""
         hand = self.current_hand
         if not hand:
             return
@@ -276,12 +316,19 @@ class BlackJack:
         self.advance_turn()
 
     def double_down(self):
+        """Dobler innsatsen, trekker nøyaktig ett kort og avslutter hånden."""
         player = self.current_player
         hand = self.current_hand
         if not player or not hand or hand.is_done:
             return
 
-        if player.funds >= hand.bet:
+        can_double = (
+                player.funds >= hand.bet
+                and len(hand.cards) == 2
+                and (self.allow_double_after_split or len(player.hands) < 2)
+        )
+
+        if can_double:
             player.funds -= hand.bet
             hand.bet *= 2
             hand.is_doubled = True
@@ -290,13 +337,21 @@ class BlackJack:
             self.advance_turn()
 
     def split(self):
+        """Splitter gjeldende hånd dersom vilkårene er oppfylt."""
         player = self.current_player
         hand_idx = self.current_hand_index
         if not player:
             return
 
         current_hand = player.hands[hand_idx]
-        if current_hand.is_splittable() and player.funds >= current_hand.bet:
+
+        can_split = (
+                current_hand.is_splittable()
+                and player.funds >= current_hand.bet
+                and len(player.hands) < self.MAX_HANDS
+        )
+
+        if can_split:
             player.funds -= current_hand.bet
             new_hand = Hand(bet=current_hand.bet)
 
@@ -306,9 +361,19 @@ class BlackJack:
             current_hand.add_card(self.deck.draw())
             new_hand.add_card(self.deck.draw())
 
+            # Lås hender dersom det var Aser som ble splittet
+            if split_card.get("rank") == "A":
+                current_hand.is_done = True
+                new_hand.is_done = True
+
+            # Sett inn den nye hånden FØR advance_turn sjekkes!
             player.hands.insert(hand_idx + 1, new_hand)
 
+            if current_hand and current_hand.is_done:
+                self.advance_turn()
+
     def advance_turn(self):
+        """Avanserer til neste hånd, neste spiller eller starter dealerens tur."""
         player = self.current_player
         if not player:
             return
@@ -327,6 +392,7 @@ class BlackJack:
             self.play_dealer_turn()
 
     def play_dealer_turn(self):
+        """Dealer viser kort og trekker basert på stand-grense og Soft-regel."""
         self.dealer.show_hole_card()
 
         active_hands = [
@@ -336,12 +402,19 @@ class BlackJack:
         ]
 
         if active_hands:
-            while self.dealer.hand.get_score() < 17:
-                self.dealer.hand.add_card(self.deck.draw())
+            while True:
+                score = self.dealer.hand.get_score()
+                if score < self.dealer_stand_threshold:
+                    self.dealer.hand.add_card(self.deck.draw())
+                elif score == self.dealer_stand_threshold and self.hit_on_soft and self.dealer.hand.is_soft():
+                    self.dealer.hand.add_card(self.deck.draw())
+                else:
+                    break
 
         self.settle_bets()
 
     def settle_bets(self):
+        """Gjennomfører rundoppgjør og regner ut utbetalinger."""
         self.game_phase = GamePhase.EVALUATION
         dealer_score = self.dealer.hand.get_score()
         dealer_busted = dealer_score > 21
@@ -380,12 +453,14 @@ class BlackJack:
                 else:
                     if not self.infinite_bank:
                         self.dealer.bank += hand.bet
-                    summaries.append(f"{player.name}{hand_label}: LOSS ({p_score} vs {dealer_score}). Lost {hand.bet} D$")
+                    summaries.append(
+                        f"{player.name}{hand_label}: LOSS ({p_score} vs {dealer_score}). Lost {hand.bet} D$")
 
         self.round_summary = " | ".join(summaries)
         self.game_phase = GamePhase.ROUND_OVER
 
     def cleanup_round(self):
+        """Samler inn brukte kort og gjør klar til ny runde."""
         if hasattr(self.dealer.hand, "cards"):
             self.deck.collect_cards(self.dealer.hand.cards)
             self.dealer.hand.cards.clear()
@@ -400,6 +475,7 @@ class BlackJack:
         self.current_hand_index = 0
 
     def save_game(self, save_name: str):
+        """Lagrer spilltilstanden med alle innstillinger til JSON."""
         if not os.path.exists(SAVES_DIR):
             os.makedirs(SAVES_DIR)
 
@@ -422,7 +498,11 @@ class BlackJack:
             "current_player_index": self.current_player_index,
             "current_hand_index": self.current_hand_index,
             "game_phase": self.game_phase.value if isinstance(self.game_phase, GamePhase) else self.game_phase,
-            "infinite_bank": self.infinite_bank
+            "infinite_bank": self.infinite_bank,
+            "dealer_stand_threshold": self.dealer_stand_threshold,
+            "hit_on_soft": self.hit_on_soft,
+            "MAX_HANDS": self.MAX_HANDS,
+            "allow_double_after_split": self.allow_double_after_split
         }
 
         try:
@@ -433,6 +513,7 @@ class BlackJack:
             return False, str(e)
 
     def load_game(self, filepath: str) -> bool:
+        """Laster spilltilstanden fra JSON-fil."""
         if not os.path.exists(filepath):
             return False
 
@@ -446,7 +527,13 @@ class BlackJack:
 
             self.current_player_index = data.get("current_player_index", 0)
             self.current_hand_index = data.get("current_hand_index", 0)
+
+            # Gjenopprett regelinnstillinger
             self.infinite_bank = data.get("infinite_bank", True)
+            self.dealer_stand_threshold = data.get("dealer_stand_threshold", 17)
+            self.hit_on_soft = data.get("hit_on_soft", False)
+            self.MAX_HANDS = data.get("MAX_HANDS", 4)
+            self.allow_double_after_split = data.get("allow_double_after_split", True)
 
             raw_phase = data.get("game_phase", "BETTING")
             self.game_phase = GamePhase(raw_phase) if raw_phase in GamePhase.__members__ else GamePhase.BETTING
@@ -456,6 +543,7 @@ class BlackJack:
 
     @staticmethod
     def get_all_saves():
+        """Henter alle lagringsfiler fra saves/-mappen."""
         if not os.path.exists(SAVES_DIR):
             return []
         saves = []
