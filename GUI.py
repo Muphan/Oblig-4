@@ -750,13 +750,13 @@ class SettingsWidget(QWidget):
         box_layout.setSpacing(15)
 
         # Infinite Bank Checkbox
-        self.chk_infinite_bank = QCheckBox("Unlimited House Bank (Husets bank går aldri tom)")
+        self.chk_infinite_bank = QCheckBox("Unlimited House Bank")
         self.chk_infinite_bank.setChecked(self.game.infinite_bank)
         self.chk_infinite_bank.setStyleSheet("color: white; font-size: 14px;")
 
         # Shoe Size
         shoe_box = QHBoxLayout()
-        lbl_shoe = QLabel("Decks in Shoe (Kortstokker):")
+        lbl_shoe = QLabel("Decks in Shoe:")
         self.spin_shoe = QSpinBox()
         self.spin_shoe.setRange(1, 8)
         self.spin_shoe.setValue(self.game.shoe_size)
@@ -765,7 +765,7 @@ class SettingsWidget(QWidget):
         shoe_box.addWidget(self.spin_shoe)
 
         # Hole Card
-        self.chk_hole_card = QCheckBox("Dealer Hole Card (Dealer har ett skjult kort)")
+        self.chk_hole_card = QCheckBox("Dealer Hole Card")
         self.chk_hole_card.setChecked(self.game.hole_card)
         self.chk_hole_card.setStyleSheet("color: white; font-size: 14px;")
 
