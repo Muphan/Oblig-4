@@ -30,7 +30,7 @@ class Hand:
 
     def get_score(self):
         """ Checks and returns the value of the hands visible cards.
-            Adjust score down if total goes over 21 and one or more cards are aces"""
+            Adjusts score down if total goes over 21 and one or more cards are aces"""
         visible_cards = [card for card in self.cards if not card.get("face_down", False)]
         base_score = sum(card["value"] for card in visible_cards)
         score_modifier = sum(card["value_modifier"] for card in visible_cards)
@@ -40,6 +40,7 @@ class Hand:
 
         score = base_score + score_modifier
 
+        # Loops as long as there are "unused" Aces and score is >21,
         while score > 21 and aces > 0:
             score -= 10
             aces -= 1
@@ -55,7 +56,7 @@ class Hand:
 
     def is_splittable(self):
         """Checks if the hand is splittable"""
-        if len(self.cards) == 2: #this might need tweeking, if i add cheats that alter this
+        if len(self.cards) == 2: #this will need tweaking if I add cheats that alter this
             return (self.cards[0]["rank"] == self.cards[1]["rank"])
         return (False)
 
@@ -66,6 +67,9 @@ class Hand:
         if len(self.cards) != self.max_blackjack_cards:
             return (False)
         self.has_blackjack = (self.get_score() == 21)
+        # changed this so has_blackjack is stored as an attribute in Hand, instead of just returning
+        # the boolean from the check, I set the attribute, then returns it. as I found I needed to check this
+        # more than one place, I figured it was better to just save it to an attribute for different checks.
         return  self.has_blackjack
 
 @dataclass # swapped to dataclasses to make the save load process more seamless
@@ -84,6 +88,9 @@ class Player:
     def bet(self, amount):
         """Check that player have enough funds, subracts the bet from available funds if they don't
             prints a message and returns False if they do not have enough funds """
+        # I should probably move the >0 check I do in prompt_player_bet here
+        # I just have to rewrite a bit to make that check accept a tuple: (bool, str)
+        # so I can send the error message with the check from here.
         if self.funds >= amount:
             self.funds -= amount
             self.hands[0].bet += amount
@@ -107,8 +114,8 @@ class Player:
 @dataclass
 class Dealer:
     """Creates a dealer instance"""
-    bank:       int             = 10000
-    hole_card:  bool            = True
+    bank:       int             = 100000 #Default value of bank
+    hole_card:  bool            = True   #Default True, hole card is on
     hand:       Hand            = field(default_factory=Hand)
 
     def show_hole_card(self):
@@ -122,9 +129,10 @@ class Dealer:
 
     @classmethod
     def from_dict(cls, data: dict):
+        """Method to reconstruct a Dealer instance from save data"""
         raw_hand = data.pop("hand", {})
         hand = Hand(**raw_hand) if isinstance(raw_hand, dict) else Hand()
-        return cls(bank=data.get("bank", 10000), hole_card=data.get("hole_card", True), hand=hand)
+        return cls(bank=data.get("bank", 100000), hole_card=data.get("hole_card", True), hand=hand)
 
 @dataclass
 class Deck:
@@ -135,6 +143,7 @@ class Deck:
     # I dont use discards for anything yet,
     # but when discard pile rule is implemented the discarded cards are stored here.
 
+    # Template for the card constructor
     SUITS = ["Hearts", "Clubs", "Spades", "Diamonds"]
     RANKS = [("2", 2), ("3", 3), ("4", 4), ("5", 5),
              ("6", 6), ("7", 7), ("8", 8), ("9", 9),
@@ -160,6 +169,8 @@ class Deck:
                     face_down: bool
                     value_modifier: int
                     """
+        # I could save on some processing power here by just generating a deck of 52,
+        # then just multiply it on the number of decks.
         self.deck = [
             {
                 "suit": suit,
@@ -182,7 +193,11 @@ class Deck:
     def draw(self):
         """Draws one card from the deck"""
         if self.deck:
-            drawn_card = self.deck.pop(0)
+            # I've gone a bit back and forth on whether I want to take first or last element,
+            # it doesn't really matter, as I do not append cards back into the deck during a round.
+            # I was doing first elem for a while, but then realized that I had the program shift all indices
+            # for no purpose, so went back to just taking the last element from the deck.
+            drawn_card = self.deck.pop()
             return drawn_card
         return (None)
 
@@ -208,6 +223,8 @@ class BlackJack:
         self.hit_on_soft = False          # If dealer should hit on soft 17 i.e Ace + 6
         self.MAX_HANDS = 4                  # Potential max hands resulting from splits
         self.allow_double_after_split = True # If player is allowed to double on a split hand
+        self.max_players = 5                  # Setting to limit amount of players
+        self.blackjack_payout_multi = 2.5      # Payout multiplier for getting blackjack
 
         # State handling for save/load and turn handling
         self.game_phase = GamePhase.BETTING
@@ -244,9 +261,7 @@ class BlackJack:
         print("Who shall join us for this round of wagers?")
         print("(Press ENTER on a blank line when all players are registered)\n")
 
-        max_players = 5
-
-        while len(self.players) < max_players:
+        while len(self.players) < self.max_players:
             prompt = "State your name, Player 1!\n" if not self.players else f"Player {len(self.players) + 1} name (or press ENTER to start):\n"
             name = input(prompt).strip()
 
@@ -304,7 +319,7 @@ class BlackJack:
 
         for player in self.players:
             if player.hands[0].is_blackjack():
-                payout = int(player.hands[0].bet * 2.5)
+                payout = int(player.hands[0].bet * self.blackjack_payout_multi) # Default multiplier 2.5
                 player.funds += payout
                 self.dealer.bank -= (payout - player.hands[0].bet)
 
@@ -463,13 +478,18 @@ class BlackJack:
 
         # Checks for remaining players in play.
         active_hands = [
+            # constructs list of active hands
+            # itterates through all players
             hand for player in self.players
+            # then each player hand
             for hand in player.hands
+            #and puts the hand in the list if the score of the hand <=21
+            #and it doesn't have blackjack
             if hand.get_score() <= 21
             and not hand.has_blackjack
         ]
 
-        if not active_hands:
+        if not active_hands: # Ends the round if there are no players
             print("All players have busted, the game is over!")
             return
 
@@ -479,7 +499,7 @@ class BlackJack:
             print(f"Dealer draws a card...")
             card = self.deck.draw()
             self.dealer.hand.add_card(card)
-            # redraw table
+            # redraws table
             ascii_render.display_table(self.dealer, self.players)
 
         dealer_score = self.dealer.hand.get_score()

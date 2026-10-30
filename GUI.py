@@ -63,7 +63,7 @@ class MainMenuWidget(QWidget):
         self.on_settings_requested = on_settings_requested
 
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        cards_path = os.path.join(script_dir, "BloodJack_cards.png")
+        cards_path = os.path.join(script_dir, "assets/BloodJack_cards.png")
         self.cards_pixmap = QPixmap(cards_path)
 
         font_path = os.path.join(script_dir, "Rye.ttf")

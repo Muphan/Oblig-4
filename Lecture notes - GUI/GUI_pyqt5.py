@@ -208,7 +208,7 @@ class MainWindow(QMainWindow):
         super().__init__()
 
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        icon_path = os.path.join(script_dir, "BloodJack.png")
+        icon_path = os.path.join(script_dir, "../BloodJack.png")
 
         self.setWindowTitle("Bloodjack")
         self.setGeometry(0, 0, 1920, 1080)
